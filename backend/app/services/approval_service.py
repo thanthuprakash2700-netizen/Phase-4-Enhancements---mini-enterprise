@@ -137,3 +137,55 @@ class ApprovalService:
             raise HTTPException(status_code=403, detail="Not authorized to view this approval history")
 
         return approval.history
+
+    @staticmethod
+    def escalate_approval(db: Session, escalation_in, current_user: User):
+        from app.models.approval import ApprovalEscalation
+        approval = db.execute(select(Approval).where(
+            Approval.id == escalation_in.approval_id,
+            Approval.organization_id == current_user.organization_id
+        )).scalars().first()
+        if not approval:
+            raise HTTPException(status_code=404, detail="Approval request not found")
+        
+        escalation = ApprovalEscalation(
+            approval_id=approval.id,
+            escalated_from=current_user.id,
+            escalated_to=escalation_in.escalated_to,
+            reason=escalation_in.reason,
+            status="pending"
+        )
+        db.add(escalation)
+        db.commit()
+        db.refresh(escalation)
+        return escalation
+
+    @staticmethod
+    def get_escalations(db: Session, current_user: User):
+        from app.models.approval import ApprovalEscalation
+        return db.query(ApprovalEscalation).filter(
+            ApprovalEscalation.escalated_from == current_user.id
+        ).all()
+
+    @staticmethod
+    def delegate_approval(db: Session, delegation_in, current_user: User):
+        from app.models.approval import ApprovalDelegation
+        delegation = ApprovalDelegation(
+            delegator_id=current_user.id,
+            delegatee_id=delegation_in.delegatee_id,
+            start_date=delegation_in.start_date,
+            end_date=delegation_in.end_date,
+            reason=delegation_in.reason,
+            is_active=True
+        )
+        db.add(delegation)
+        db.commit()
+        db.refresh(delegation)
+        return delegation
+
+    @staticmethod
+    def get_delegations(db: Session, current_user: User):
+        from app.models.approval import ApprovalDelegation
+        return db.query(ApprovalDelegation).filter(
+            ApprovalDelegation.delegator_id == current_user.id
+        ).all()

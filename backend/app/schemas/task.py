@@ -29,6 +29,9 @@ class TaskOut(TaskBase):
     updated_by_name: Optional[str] = None
     created_at: datetime
     updated_at: datetime
+    sla_status: Optional[str] = None
+    sla_due_time: Optional[datetime] = None
+    is_sla_breached: bool = False
     comments: List[CommentOut] = []
 
     class Config:

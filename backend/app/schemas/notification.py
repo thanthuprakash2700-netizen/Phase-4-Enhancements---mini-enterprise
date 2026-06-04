@@ -8,6 +8,8 @@ class NotificationOut(BaseModel):
     user_id: int
     message: str
     is_read: bool
+    notification_type: Optional[str] = None
+    priority: Optional[str] = None
     created_at: datetime
 
     class Config:

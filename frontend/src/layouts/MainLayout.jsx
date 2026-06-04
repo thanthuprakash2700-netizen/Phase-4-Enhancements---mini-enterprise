@@ -13,7 +13,12 @@ import {
   Menu,
   X,
   Bell,
-  CreditCard
+  CreditCard,
+  Settings,
+  ShieldAlert,
+  Users,
+  Gauge,
+  ListTodo
 } from 'lucide-react';
 
 const MainLayout = ({ children }) => {
@@ -26,16 +31,34 @@ const MainLayout = ({ children }) => {
 
   const navItems = [
     { icon: <LayoutDashboard size={20} />, label: 'Dashboard', path: '/' },
+    { icon: <ListTodo size={20} />, label: 'Tasks', path: '/tasks' },
     { icon: <Columns size={20} />, label: 'Kanban Board', path: '/kanban' },
     { icon: <FileCheck size={20} />, label: 'Approvals', path: '/approvals' },
     { icon: <FileBox size={20} />, label: 'Documents', path: '/documents' },
     { icon: <Bell size={20} />, label: 'Notifications', path: '/notifications' },
+    { icon: <Settings size={20} />, label: 'Preferences', path: '/settings/notification-preferences' },
     { icon: <CreditCard size={20} />, label: 'Billing & Plans', path: '/billing' },
   ];
 
+  if (['admin', 'manager', 'auditor'].includes(user.role)) {
+    navItems.splice(1, 0, { icon: <Gauge size={20} />, label: 'SLA Dashboard', path: '/dashboard/sla' });
+  }
+
+  if (['admin', 'manager', 'auditor'].includes(user.role)) {
+    navItems.push({ icon: <ShieldAlert size={20} />, label: 'Escalations', path: '/approval-escalations' });
+  }
+
+  if (['admin', 'manager'].includes(user.role)) {
+    navItems.push({ icon: <Users size={20} />, label: 'Delegations', path: '/approval-delegations' });
+  }
+
   if (user.role === 'admin') {
     navItems.push({ icon: <UserIcon size={20} />, label: 'System Users', path: '/users' });
-    navItems.push({ icon: <Activity size={20} />, label: 'Audit Logs', path: '/audit-logs' });
+    navItems.push({ icon: <Settings size={20} />, label: 'SLA Rules', path: '/admin/sla-rules' });
+  }
+
+  if (['admin', 'auditor'].includes(user.role)) {
+    navItems.push({ icon: <Activity size={20} />, label: 'Audit Logs', path: '/admin/audit-logs' });
   }
 
   return (

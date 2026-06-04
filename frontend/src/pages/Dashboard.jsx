@@ -23,7 +23,8 @@ import {
   User as UserIcon,
   Zap,
   Bell,
-  Activity
+  Activity,
+  AlertCircle
 } from 'lucide-react';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 

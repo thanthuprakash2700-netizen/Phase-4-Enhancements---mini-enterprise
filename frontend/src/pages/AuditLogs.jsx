@@ -1,23 +1,52 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
-import { Activity, Clock, FileText, CheckCircle2, User as UserIcon, MessageSquare, Edit2, AlertCircle, Database } from 'lucide-react';
+import { Activity, Eye, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+
+import PageHeader from '../components/common/PageHeader';
+import FilterBar from '../components/common/FilterBar';
+import DateRangeFilter from '../components/common/DateRangeFilter';
+import UserSelectDropdown from '../components/common/UserSelectDropdown';
+import DataTable from '../components/common/DataTable';
+import StatusBadge from '../components/common/StatusBadge';
 
 const AuditLogs = () => {
   const { user } = useAuth();
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true);
+  
+  // Filters
+  const [selectedUser, setSelectedUser] = useState('');
+  const [selectedModule, setSelectedModule] = useState('');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
+
+  // Modal State
+  const [selectedLog, setSelectedLog] = useState(null);
 
   useEffect(() => {
-    if (user?.role === 'admin') {
+    if (['admin', 'auditor'].includes(user?.role)) {
       fetchLogs();
     }
-  }, [user]);
+  }, [user, selectedUser, selectedModule, startDate, endDate]);
 
   const fetchLogs = async () => {
     try {
-      const res = await api.get('/audit-logs/');
+      setLoading(true);
+      let endpoint = '/audit-logs/';
+      let params = {};
+
+      if (selectedUser) {
+        endpoint = `/audit-logs/user/${selectedUser}`;
+      } else if (selectedModule) {
+        endpoint = `/audit-logs/module/${selectedModule}`;
+      } else if (startDate && endDate) {
+        endpoint = `/audit-logs/date-range`;
+        params = { start_date: new Date(startDate).toISOString(), end_date: new Date(endDate).toISOString() };
+      }
+
+      const res = await api.get(endpoint, { params });
       setLogs(res.data.items || res.data);
     } catch (e) {
       console.error(e);
@@ -26,130 +55,165 @@ const AuditLogs = () => {
     }
   };
 
-  if (user?.role !== 'admin') {
+  if (!['admin', 'auditor'].includes(user?.role)) {
     return <div className="p-8">Not authorized</div>;
   }
 
-  const getIcon = (action) => {
-    action = action.toUpperCase();
-    if (action.includes('STATUS')) return <Activity size={18} className="text-primary" />;
-    if (action.includes('COMMENT')) return <MessageSquare size={18} className="text-purple-500" />;
-    if (action.includes('DOCUMENT') || action.includes('UPLOAD')) return <FileText size={18} className="text-blue-500" />;
-    if (action.includes('CREATE')) return <CheckCircle2 size={18} className="text-emerald-500" />;
-    if (action.includes('ASSIGN')) return <UserIcon size={18} className="text-amber-500" />;
-    if (action.includes('UPDATE')) return <Edit2 size={18} className="text-indigo-500" />;
-    return <Database size={18} className="text-slate-400" />;
-  };
+  const columns = [
+    { header: 'Log ID', accessor: (log) => <span className="font-mono text-xs text-slate-500">#{log.id}</span> },
+    { header: 'User', accessor: (log) => log.user_id || 'System' },
+    { header: 'Module', accessor: (log) => log.module_name || log.entity },
+    { header: 'Action Type', accessor: (log) => <StatusBadge status={log.action_type || log.action} /> },
+    { header: 'Record ID', accessor: (log) => log.record_id || log.entity_id || '-' },
+    { header: 'IP Address', accessor: (log) => log.ip_address || '-' },
+    { header: 'Created At', accessor: (log) => new Date(log.timestamp).toLocaleString() },
+    { 
+      header: 'Actions', 
+      accessor: (log) => (
+        <button 
+          onClick={(e) => { e.stopPropagation(); setSelectedLog(log); }}
+          className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+          title="View Details"
+        >
+          <Eye size={18} />
+        </button>
+      )
+    },
+  ];
 
-  const renderDetails = (log) => {
-    if (!log.details) return null;
-    const details = log.details;
-    const action = log.action.toUpperCase();
-
-    if (action.includes('STATUS')) {
-      return (
-        <div className="flex items-center gap-2 mt-2">
-          <span className="text-xs px-2 py-0.5 rounded bg-slate-100 text-slate-500 font-bold uppercase">{details.old_status || 'UNKNOWN'}</span>
-          <span className="text-slate-400">→</span>
-          <span className="text-xs px-2 py-0.5 rounded bg-primary/10 text-primary font-bold uppercase">{details.new_status || 'UNKNOWN'}</span>
-        </div>
-      );
-    }
-    
-    if (action.includes('COMMENT')) {
-      return (
-        <div className="mt-2 p-3 bg-white rounded-lg border border-slate-100 text-sm text-slate-600 italic">
-          "{details.content}"
-        </div>
-      );
-    }
-
-    if (action.includes('UPLOAD') || action.includes('DOWNLOAD')) {
-      return (
-        <div className="flex items-center gap-2 mt-2 text-sm text-slate-600 font-medium">
-          <FileText size={14} className="text-blue-500" /> {details.file_name} {details.version ? `(v${details.version})` : ''}
-        </div>
-      );
-    }
-
-    return (
-      <div className="mt-2 text-xs font-mono bg-white p-2 rounded border border-slate-100 text-slate-600 overflow-x-auto">
-        <pre>{JSON.stringify(details, null, 2)}</pre>
-      </div>
-    );
+  const clearFilters = () => {
+    setSelectedUser('');
+    setSelectedModule('');
+    setStartDate('');
+    setEndDate('');
   };
 
   return (
-    <div className="flex flex-col h-full max-w-5xl mx-auto w-full">
-      <header className="mb-10">
-        <h1 className="text-4xl font-bold text-slate-900 tracking-tight">System Audit Logs</h1>
-        <p className="text-slate-500 font-medium mt-2">Monitor all system activities, permission changes, and data updates.</p>
-      </header>
+    <div className="flex flex-col h-full max-w-7xl mx-auto w-full">
+      <PageHeader 
+        title="Audit Logs" 
+        subtitle="Monitor detailed backend activity, data changes, and system events."
+        icon={Activity}
+      />
 
-      <div className="bg-white rounded-[32px] p-8 shadow-sm border border-slate-100 flex-1 relative">
-        <div className="flex items-center gap-3 mb-8 pb-6 border-b border-slate-100">
-          <div className="p-3 bg-primary/10 rounded-xl text-primary">
-            <Activity size={24} />
-          </div>
-          <div>
-            <h3 className="font-bold text-slate-800 text-xl">Global Activity Timeline</h3>
-            <p className="text-sm text-slate-500">Real-time stream of all enterprise events</p>
-          </div>
+      <FilterBar>
+        <div className="flex flex-col gap-1">
+          <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Module</label>
+          <select 
+            value={selectedModule} 
+            onChange={(e) => { setSelectedModule(e.target.value); setSelectedUser(''); setStartDate(''); setEndDate(''); }}
+            className="w-full sm:w-auto bg-slate-50 border border-slate-200 text-slate-700 text-sm rounded-lg focus:ring-primary focus:border-primary block p-2 outline-none transition-all"
+          >
+            <option value="">All Modules</option>
+            <option value="Tasks">Tasks</option>
+            <option value="Approvals">Approvals</option>
+            <option value="SLA">SLA</option>
+            <option value="Notifications">Notifications</option>
+            <option value="Users">Users</option>
+          </select>
         </div>
         
-        {loading ? (
-          <div className="animate-pulse space-y-6">
-            {[1, 2, 3, 4].map(i => <div key={i} className="h-24 bg-slate-50 rounded-2xl" />)}
-          </div>
-        ) : (
-          <div className="relative pl-6">
-            <div className="absolute left-[39px] top-6 bottom-6 w-px bg-slate-100"></div>
-            <div className="space-y-6">
-              <AnimatePresence>
-                {logs.map((log, index) => (
-                  <motion.div 
-                    initial={{ opacity: 0, x: -20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: Math.min(index * 0.05, 1) }}
-                    key={log.id} 
-                    className="flex gap-6 relative z-10"
-                  >
-                    <div className="w-10 h-10 rounded-full bg-white border-4 border-slate-50 flex items-center justify-center shrink-0 shadow-sm mt-1">
-                      {getIcon(log.action)}
-                    </div>
-                    
-                    <div className="flex-1 bg-slate-50/50 hover:bg-slate-50 border border-slate-100 rounded-2xl p-5 transition-all">
-                      <div className="flex justify-between items-start mb-2">
-                        <div className="flex items-center gap-3">
-                          <span className="font-bold text-slate-800">
-                            {log.action.replace(/_/g, ' ')}
-                          </span>
-                          <span className="text-[10px] bg-slate-200 text-slate-600 px-2.5 py-1 rounded-md font-bold uppercase tracking-wider">
-                            {log.entity} #{log.entity_id}
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-2 text-sm text-slate-400 font-medium">
-                          <Clock size={14} />
-                          {new Date(log.timestamp).toLocaleString()}
-                        </div>
-                      </div>
-                      <p className="text-sm text-slate-500 font-medium">User ID: <span className="text-slate-700">{log.user_id || 'System'}</span></p>
-                      
-                      {renderDetails(log)}
-                    </div>
-                  </motion.div>
-                ))}
-              </AnimatePresence>
-              {logs.length === 0 && (
-                <div className="flex flex-col items-center justify-center py-16 text-slate-400">
-                  <AlertCircle size={48} className="mb-4 opacity-20" />
-                  <p className="text-lg font-medium">No system activity logged yet.</p>
+        <div onClick={() => { setSelectedModule(''); setStartDate(''); setEndDate(''); }}>
+          <UserSelectDropdown value={selectedUser} onChange={setSelectedUser} />
+        </div>
+
+        <div onClick={() => { setSelectedUser(''); setSelectedModule(''); }}>
+          <DateRangeFilter 
+            startDate={startDate} 
+            endDate={endDate} 
+            onStartDateChange={setStartDate} 
+            onEndDateChange={setEndDate} 
+          />
+        </div>
+
+        {(selectedUser || selectedModule || (startDate && endDate)) && (
+          <button 
+            onClick={clearFilters}
+            className="text-sm font-medium text-slate-500 hover:text-slate-700 bg-slate-100 hover:bg-slate-200 px-4 py-2 rounded-lg transition-colors"
+          >
+            Clear Filters
+          </button>
+        )}
+      </FilterBar>
+
+      <DataTable 
+        columns={columns} 
+        data={logs} 
+        loading={loading}
+        onRowClick={(row) => setSelectedLog(row)}
+        emptyStateProps={{
+          title: "No audit logs found",
+          message: "Try adjusting your filters to see more results."
+        }}
+      />
+
+      {/* Detail Modal */}
+      <AnimatePresence>
+        {selectedLog && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[90vh] flex flex-col relative overflow-hidden"
+            >
+              <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-slate-50">
+                <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+                  <Activity size={20} className="text-indigo-500" />
+                  Audit Log Details
+                </h3>
+                <button 
+                  onClick={() => setSelectedLog(null)}
+                  className="text-slate-400 hover:text-slate-600 transition-colors p-1 hover:bg-slate-200 rounded-md"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+              
+              <div className="p-6 overflow-y-auto flex-1">
+                <div className="grid grid-cols-2 gap-6 mb-8">
+                  <div>
+                    <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Timestamp</p>
+                    <p className="text-sm font-medium text-slate-800">{new Date(selectedLog.timestamp).toLocaleString()}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">IP Address</p>
+                    <p className="text-sm font-medium text-slate-800">{selectedLog.ip_address || 'N/A'}</p>
+                  </div>
+                  <div className="col-span-2">
+                    <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">User Agent</p>
+                    <p className="text-sm font-medium text-slate-800 bg-slate-50 p-2 rounded-lg border border-slate-100">{selectedLog.user_agent || 'N/A'}</p>
+                  </div>
                 </div>
-              )}
-            </div>
+
+                <div className="space-y-6">
+                  <div>
+                    <h4 className="text-sm font-bold text-slate-700 mb-2 border-b pb-1">Old Data</h4>
+                    <div className="bg-rose-50 border border-rose-100 rounded-xl p-4 overflow-x-auto">
+                      {selectedLog.old_data ? (
+                        <pre className="text-xs text-rose-800 font-mono">{JSON.stringify(selectedLog.old_data, null, 2)}</pre>
+                      ) : (
+                        <p className="text-sm text-rose-400 italic">No previous data.</p>
+                      )}
+                    </div>
+                  </div>
+
+                  <div>
+                    <h4 className="text-sm font-bold text-slate-700 mb-2 border-b pb-1">New Data</h4>
+                    <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-4 overflow-x-auto">
+                      {selectedLog.new_data || selectedLog.details ? (
+                        <pre className="text-xs text-emerald-800 font-mono">{JSON.stringify(selectedLog.new_data || selectedLog.details, null, 2)}</pre>
+                      ) : (
+                        <p className="text-sm text-emerald-400 italic">No new data.</p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
           </div>
         )}
-      </div>
+      </AnimatePresence>
     </div>
   );
 };

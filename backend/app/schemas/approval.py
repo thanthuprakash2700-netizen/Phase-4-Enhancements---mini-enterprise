@@ -39,6 +39,10 @@ class ApprovalOut(ApprovalBase):
     status: str
     current_level: str
     created_at: datetime
+    sla_status: Optional[str] = None
+    sla_due_time: Optional[datetime] = None
+    is_escalated: bool = False
+    current_escalation_to: Optional[int] = None
     history: List[ApprovalHistoryOut] = []
 
     class Config:

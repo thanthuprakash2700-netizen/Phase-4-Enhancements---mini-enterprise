@@ -40,6 +40,10 @@ class Task(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
     organization_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("organizations.id"), index=True, nullable=True)
+    
+    sla_status: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    sla_due_time: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    is_sla_breached: Mapped[bool] = mapped_column(default=False, nullable=False)
 
     creator: Mapped[Any] = relationship("User", foreign_keys=[created_by_id])
     assignee: Mapped[Optional[Any]] = relationship("User", foreign_keys=[assigned_to_id])

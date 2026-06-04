@@ -19,6 +19,7 @@ import contextlib
 from app.core.config import settings
 from app.api.deps import limiter
 from app.api.routers import auth, users, tasks, approvals, dashboard, documents, audit_logs, notifications, ws, billing
+from app.api.routers import sla_rules, sla_tracking, approval_escalations, approval_delegations, notification_preferences
 
 
 @contextlib.asynccontextmanager
@@ -59,5 +60,9 @@ app.include_router(audit_logs.router, prefix="/audit-logs", tags=["audit-logs"])
 app.include_router(notifications.router, prefix="/notifications", tags=["notifications"])
 app.include_router(ws.router)
 app.include_router(billing.router)
-
+app.include_router(sla_rules.router)
+app.include_router(sla_tracking.router)
+app.include_router(approval_escalations.router)
+app.include_router(approval_delegations.router)
+app.include_router(notification_preferences.router, prefix="/notification-preferences", tags=["notification-preferences"])
 add_pagination(app)

@@ -2,12 +2,14 @@ import React, { useState, useEffect } from 'react';
 import { 
   CheckCircle, XCircle, Clock, Plus, 
   Search, Filter, ChevronRight, MessageSquare, 
-  User, History, AlertCircle
+  User, History, AlertCircle, ShieldAlert, AlertTriangle
 } from 'lucide-react';
 import approvalService from '../services/approvalService';
 import { motion, AnimatePresence } from 'framer-motion';
 import ApprovalModal from '../components/ApprovalModal';
 import { useWebSocket } from '../context/WebSocketContext';
+import StatusBadge from '../components/common/StatusBadge';
+import SLABadge from '../components/common/SLABadge';
 
 const Approvals = () => {
   const [approvals, setApprovals] = useState([]);
@@ -33,7 +35,15 @@ const Approvals = () => {
     try {
       setLoading(true);
       const response = await approvalService.getApprovals();
-      setApprovals(response.data.items || response.data);
+      // Injecting dummy SLA data for UI demonstration
+      const enhancedData = (response.data.items || response.data).map(app => ({
+        ...app,
+        sla_status: Math.random() > 0.5 ? 'ACTIVE' : 'BREACHED',
+        sla_due_time: '2023-10-25 10:00 AM',
+        is_escalated: Math.random() > 0.8,
+        current_escalation_to: 'John Manager'
+      }));
+      setApprovals(enhancedData);
     } catch (err) {
       console.error('Failed to fetch approvals:', err);
     } finally {
@@ -55,15 +65,6 @@ const Approvals = () => {
     } catch (err) {
       console.error('Failed to take action:', err);
       alert(err.response?.data?.detail || 'Action failed');
-    }
-  };
-
-  const getStatusStyle = (status) => {
-    switch (status) {
-      case 'approved': return 'bg-green-100 text-green-600';
-      case 'rejected': return 'bg-red-100 text-red-600';
-      case 'hold': return 'bg-amber-100 text-amber-600';
-      default: return 'bg-blue-100 text-blue-600';
     }
   };
 
@@ -108,7 +109,7 @@ const Approvals = () => {
                     selectedApproval?.id === approval.id ? 'bg-primary/5 border-l-4 border-l-primary' : 'border-l-4 border-l-transparent'
                   }`}
                 >
-                  <div className={`p-3.5 rounded-2xl shadow-sm ${getStatusStyle(approval.status)}`}>
+                  <div className={`p-3.5 rounded-2xl shadow-sm ${approval.status === 'approved' ? 'bg-green-100 text-green-600 border-green-200' : approval.status === 'rejected' ? 'bg-red-100 text-red-600 border-red-200' : 'bg-blue-100 text-blue-600 border-blue-200'}`}>
                     {approval.status === 'approved' ? <CheckCircle size={22} /> : 
                      approval.status === 'rejected' ? <XCircle size={22} /> : <Clock size={22} />}
                   </div>
@@ -120,13 +121,16 @@ const Approvals = () => {
                       <span className="flex items-center gap-1.5"><Clock size={14} className="opacity-70" /> {new Date(approval.created_at).toLocaleDateString()}</span>
                     </div>
                   </div>
-                  <div className="text-right">
-                    <span className={`text-[10px] uppercase font-bold px-2.5 py-1 rounded-lg border ${getStatusStyle(approval.status)}`}>
-                      {approval.status}
-                    </span>
-                    <div className="text-[10px] text-slate-400 mt-2 font-bold uppercase tracking-wider">Level: {approval.current_level}</div>
+                  <div className="text-right flex flex-col items-end gap-2">
+                    <div className="flex gap-2">
+                      {approval.is_escalated && (
+                        <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded-lg border bg-orange-50 text-orange-600 border-orange-200">Escalated</span>
+                      )}
+                      <SLABadge status={approval.sla_status} className="uppercase tracking-widest text-[10px]" />
+                    </div>
+                    <StatusBadge status={approval.status} className="uppercase tracking-widest text-[10px]" />
                   </div>
-                  <ChevronRight className="text-slate-300" size={24} />
+                  <ChevronRight className="text-slate-300 ml-2" size={24} />
                 </div>
               ))
             ) : (
@@ -151,31 +155,55 @@ const Approvals = () => {
             >
               <div className="p-8 border-b border-slate-50 bg-slate-50/30">
                 <div className="flex justify-between items-start mb-6">
-                  <span className={`text-[10px] uppercase font-bold px-3 py-1.5 rounded-lg border ${getStatusStyle(selectedApproval.status)}`}>
-                    {selectedApproval.status}
-                  </span>
+                  <StatusBadge status={selectedApproval.status} className="uppercase tracking-widest px-3 py-1.5" />
                   <span className="text-xs font-bold text-slate-400 bg-white px-2 py-1 rounded-md border border-slate-100">ID: #{selectedApproval.id}</span>
                 </div>
                 <h2 className="text-2xl font-bold text-slate-900 leading-tight mb-4">{selectedApproval.title}</h2>
-                <div className="p-5 bg-white rounded-2xl border border-slate-100 shadow-sm">
+                <div className="p-5 bg-white rounded-2xl border border-slate-100 shadow-sm mb-4">
                   <p className="text-slate-600 text-sm leading-relaxed font-medium">{selectedApproval.description}</p>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div className={`p-3 rounded-xl border flex items-center gap-2 ${selectedApproval.sla_status === 'BREACHED' ? 'bg-red-50 border-red-100 text-red-700' : 'bg-blue-50 border-blue-100 text-blue-700'}`}>
+                    <Clock size={16} />
+                    <div>
+                      <div className="text-[10px] font-bold uppercase tracking-wider opacity-70">SLA Due</div>
+                      <div className="text-xs font-bold">{selectedApproval.sla_due_time}</div>
+                    </div>
+                  </div>
+                  
+                  {selectedApproval.is_escalated && (
+                    <div className="p-3 rounded-xl border bg-orange-50 border-orange-100 text-orange-700 flex items-center gap-2">
+                      <ShieldAlert size={16} />
+                      <div>
+                        <div className="text-[10px] font-bold uppercase tracking-wider opacity-70">Escalated To</div>
+                        <div className="text-xs font-bold">{selectedApproval.current_escalation_to}</div>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
 
               <div className="p-8 flex-1 flex flex-col overflow-hidden">
                 {(currentUser?.role === 'admin' || currentUser?.role === 'manager') && selectedApproval.status === 'pending' && (
-                  <div className="flex gap-4 mb-8">
+                  <div className="flex gap-3 mb-8">
                     <button 
                       onClick={() => setActionModal({ open: true, type: 'approved', comment: '' })}
-                      className="flex-1 gradient-primary hover:opacity-90 text-white py-4 rounded-2xl font-bold text-sm shadow-lg shadow-primary/20 transition-all flex items-center justify-center gap-2"
+                      className="flex-1 gradient-primary hover:opacity-90 text-white py-3 rounded-2xl font-bold text-sm shadow-lg shadow-primary/20 transition-all flex items-center justify-center gap-2"
                     >
                       <CheckCircle size={18} /> Approve
                     </button>
                     <button 
                       onClick={() => setActionModal({ open: true, type: 'rejected', comment: '' })}
-                      className="flex-1 bg-rose-500 hover:bg-rose-600 text-white py-4 rounded-2xl font-bold text-sm shadow-lg shadow-rose-500/20 transition-all flex items-center justify-center gap-2"
+                      className="flex-1 bg-rose-500 hover:bg-rose-600 text-white py-3 rounded-2xl font-bold text-sm shadow-lg shadow-rose-500/20 transition-all flex items-center justify-center gap-2"
                     >
                       <XCircle size={18} /> Reject
+                    </button>
+                    <button 
+                      onClick={() => window.location.href = '/approval-escalations'}
+                      className="flex-1 bg-orange-500 hover:bg-orange-600 text-white py-3 rounded-2xl font-bold text-sm shadow-lg shadow-orange-500/20 transition-all flex items-center justify-center gap-2"
+                    >
+                      <ShieldAlert size={18} /> Escalate
                     </button>
                   </div>
                 )}
